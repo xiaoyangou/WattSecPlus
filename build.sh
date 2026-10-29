@@ -128,6 +128,9 @@ echo "Cleaning up build files..."
 find $dest_dir -maxdepth 1 ! -name WattSecPlus.app ! -path $dest_dir -exec rm -rf {} +
 
 app_path="$dest_dir/WattSecPlus.app"
+# Remove local source/build paths from Mach-O debug and local symbols.
+xcrun strip -S -x "$app_path/Contents/MacOS/WattSecPlus"
+codesign --force --sign - --timestamp=none --entitlements "$entitlements_file" "$app_path"
 if [ $sign_app = true ]; then
 	echo "Code signing WattSecPlus.app..."
 	[ ! -f $entitlements_file ] && error "Entitlements file not found: $entitlements_file"
