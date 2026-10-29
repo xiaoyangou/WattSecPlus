@@ -1,0 +1,15 @@
+# Local IDE state
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+.DS_Store
+# Build and temporary data
+dist/
+build/
+DerivedData/
+*.dSYM/
+*.log
+__pycache__/
+*.pyc
+.env
+.env.*
