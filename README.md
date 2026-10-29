@@ -1,5 +1,7 @@
 # WattSecPlus
 
+**English** | [简体中文](README.zh-CN.md)
+
 A lightweight macOS menu bar power monitor, based on [beutton/wattsec](https://github.com/beutton/wattsec) by Ben Beutton.
 
 WattSecPlus retains the original native menu and adds just two readings:
@@ -8,6 +10,14 @@ WattSecPlus retains the original native menu and adds just two readings:
 - Actual DC power input, rather than the adapter’s rated wattage.
 
 The battery reading is a balance estimate that includes unaccounted conversion losses; it is not a direct battery-terminal measurement. Both sensors are read in the same sampling cycle, but the hardware may update them at different times. Availability depends on the Mac and its SMC sensors.
+
+## Screenshot
+
+<p align="center">
+  <img src="docs/images/menu-light.png" width="480" alt="WattSecPlus native menu showing 58.0 W battery charging balance, 70.0 W DC input, and the original settings">
+</p>
+
+Captured from the actual native menu with demonstration values; no desktop or personal information is included. The example system reading is 12.0 W, so the charging balance is 70.0 − 12.0 = 58.0 W. System power normally appears in the menu bar.
 
 ## Download
 
@@ -62,7 +72,3 @@ The application reads local SMC power sensors. It has no analytics, telemetry, a
 - [exelban/stats](https://github.com/exelban/stats) for the upstream SMC polling implementation.
 
 Distributed under the [MIT License](LICENSE). The original copyright notice is preserved. WattSecPlus adds the power rows, balance calculation, and reliability improvements described above.
-
----
-
-中文：本项目基于 **[Ben Beutton 的 WattSec](https://github.com/beutton/wattsec)**，保留原生菜单，新增电池充放电差值功率与直流输入功率，并改进刷新和读取稳定性。原作者署名与 MIT 许可均已保留。
