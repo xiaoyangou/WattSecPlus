@@ -19,7 +19,7 @@
 
 ## 下载与使用
 
-从 [Releases](https://github.com/xiaoyangou/WattSecPlus/releases) 下载 `WattSecPlus-macOS.zip`，解压并打开 `WattSecPlus.app`，也可将其拖入“应用程序”文件夹。
+从 [Releases](https://github.com/xiaoyangou/WattSecPlus/releases) 下载最新版本的 macOS App 压缩包（如 `WattSecPlus-1.1.3-macOS.zip`），解压并打开 `WattSecPlus.app`，也可将其拖入“应用程序”文件夹。
 
 打开前先退出已有的 WattSec 或旧版 WattSecPlus，避免菜单栏重复显示。
 

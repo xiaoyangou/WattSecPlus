@@ -21,7 +21,7 @@ Captured from the actual native menu with demonstration values; no desktop or pe
 
 ## Download
 
-Download `WattSecPlus-macOS.zip` from [Releases](https://github.com/xiaoyangou/WattSecPlus/releases). Quit any older WattSec/WattSecPlus instance before opening the app. Requires macOS 13 or later. The universal binary includes Apple Silicon and Intel architectures. Builds are ad-hoc signed and not notarized by Apple.
+Download the latest macOS app ZIP (for example, `WattSecPlus-1.1.3-macOS.zip`) from [Releases](https://github.com/xiaoyangou/WattSecPlus/releases). Quit any older WattSec/WattSecPlus instance before opening the app. Requires macOS 13 or later. The universal binary includes Apple Silicon and Intel architectures. Builds are ad-hoc signed and not notarized by Apple.
 
 ## Settings
 
