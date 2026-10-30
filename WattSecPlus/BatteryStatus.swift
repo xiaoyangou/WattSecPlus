@@ -4,10 +4,16 @@ import Foundation
 struct BatteryStatus {
     let systemWatts: Double?
     let inputWatts: Double?
+    let inputSourceDescription: String?
+    let isBatteryIdle: Bool
+    let isBatteryIdlePending: Bool
 
-    init(systemWatts: Double? = nil, inputWatts: Double? = nil) {
+    init(systemWatts: Double? = nil, inputWatts: Double? = nil, inputSourceDescription: String? = nil, isBatteryIdle: Bool = false, isBatteryIdlePending: Bool = false) {
         self.systemWatts = Self.validPower(systemWatts)
         self.inputWatts = Self.validPower(inputWatts)
+        self.inputSourceDescription = inputSourceDescription
+        self.isBatteryIdle = isBatteryIdle
+        self.isBatteryIdlePending = isBatteryIdlePending
     }
 
     var balance: Double? {
@@ -26,9 +32,11 @@ struct BatteryStatus {
     }
 
     private func displayedBalance(decimalPlaces: Int) -> Double? {
+        guard !isBatteryIdlePending else { return nil }
         guard let systemWatts, let inputWatts,
               let system = Double(String(format: "%.*f", decimalPlaces, systemWatts)),
               let input = Double(String(format: "%.*f", decimalPlaces, inputWatts)) else { return nil }
+        if isBatteryIdle { return 0 }
         return input - system
     }
 

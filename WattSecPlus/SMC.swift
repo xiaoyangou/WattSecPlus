@@ -158,6 +158,7 @@ private struct IOKitSMCTransport: SMCTransport {
 
 internal enum SMCSafety {
     static let floatType = FourCharCode(fromString: "flt ")
+    static let signed16Type = FourCharCode(fromString: "si16")
 
     static func isValidDataSize(_ dataSize: UInt32) -> Bool {
         return (1...32).contains(dataSize)
@@ -185,6 +186,21 @@ internal enum SMCSafety {
         let byteArray: [UInt8] = withUnsafeBytes(of: bytes) { Array($0) }
         return decodeFloat(byteArray, dataSize: dataSize)
     }
+
+    static func decodeSignedInt16(_ bytes: [UInt8], dataSize: UInt32) -> Double? {
+        guard dataSize == 2, bytes.count >= 2 else {
+            return nil
+        }
+
+        let bitPattern = UInt16(bytes[0]) | (UInt16(bytes[1]) << 8)
+        return Double(Int16(bitPattern: bitPattern))
+    }
+
+    static func decodeSignedInt16(_ bytes: SMCKeyData_t.SMCBytes_t,
+                                  dataSize: UInt32) -> Double? {
+        let byteArray: [UInt8] = withUnsafeBytes(of: bytes) { Array($0) }
+        return decodeSignedInt16(byteArray, dataSize: dataSize)
+    }
 }
 
 public class SMC {
@@ -196,9 +212,7 @@ public class SMC {
         let dataType: UInt32
 
         init?(dataSize: UInt32, dataType: UInt32) {
-            guard SMCSafety.isValidDataSize(dataSize),
-                  dataType == SMCSafety.floatType,
-                  dataSize == 4 else {
+            guard SMCSafety.isValidDataSize(dataSize) else {
                 return nil
             }
             self.dataSize = dataSize
@@ -273,6 +287,32 @@ public class SMC {
         return readValue(for: key, keyCode: keyCode)
     }
 
+    /// Reads the Apple Silicon battery-current SMC key in signed mA.
+    /// Intel SMCs do not share this encoding, so this intentionally has no
+    /// fallback guess on other architectures.
+    internal func batteryCurrentMilliamps() -> Double? {
+#if arch(arm64)
+        let key = "B0AC"
+        guard let keyCode = Self.keyCode(for: key) else {
+            return nil
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard ensureConnection(),
+              let info = keyInfo(for: key, keyCode: keyCode,
+                                 accepting: { $0.dataType == SMCSafety.signed16Type &&
+                                     $0.dataSize == 2 }),
+              let bytes = readBytes(for: key, keyCode: keyCode, info: info) else {
+            return nil
+        }
+        return SMCSafety.decodeSignedInt16(bytes, dataSize: info.dataSize)
+#else
+        return nil
+#endif
+    }
+
     private func ensureConnection() -> Bool {
         guard conn == 0 else {
             return true
@@ -299,29 +339,42 @@ public class SMC {
     }
 
     private func readValue(for key: String, keyCode: UInt32) -> Double? {
-        let info: KeyInfo
+        guard let info = keyInfo(for: key, keyCode: keyCode,
+                                 accepting: { $0.dataType == SMCSafety.floatType &&
+                                     $0.dataSize == 4 }),
+              let bytes = readBytes(for: key, keyCode: keyCode, info: info) else {
+            return nil
+        }
+        return SMCSafety.decodeFloat(bytes, dataSize: info.dataSize)
+    }
+
+    private func keyInfo(for key: String,
+                         keyCode: UInt32,
+                         accepting: (KeyInfo) -> Bool) -> KeyInfo? {
         if let cachedInfo = keyInfoCache[key] {
-            info = cachedInfo
-        } else {
-            var input = SMCKeyData_t()
-            var output = SMCKeyData_t()
-            input.key = keyCode
-            input.data8 = SMCKeys.readKeyInfo.rawValue
-
-            guard invoke(index: SMCKeys.kernelIndex.rawValue,
-                         input: &input,
-                         output: &output) else {
-                return nil
-            }
-
-            guard let fetchedInfo = KeyInfo(dataSize: UInt32(output.keyInfo.dataSize),
-                                            dataType: output.keyInfo.dataType) else {
-                return nil
-            }
-            keyInfoCache[key] = fetchedInfo
-            info = fetchedInfo
+            return accepting(cachedInfo) ? cachedInfo : nil
         }
 
+        var input = SMCKeyData_t()
+        var output = SMCKeyData_t()
+        input.key = keyCode
+        input.data8 = SMCKeys.readKeyInfo.rawValue
+
+        guard invoke(index: SMCKeys.kernelIndex.rawValue,
+                     input: &input,
+                     output: &output),
+              let fetchedInfo = KeyInfo(dataSize: UInt32(output.keyInfo.dataSize),
+                                        dataType: output.keyInfo.dataType),
+              accepting(fetchedInfo) else {
+            return nil
+        }
+        keyInfoCache[key] = fetchedInfo
+        return fetchedInfo
+    }
+
+    private func readBytes(for key: String,
+                           keyCode: UInt32,
+                           info: KeyInfo) -> SMCKeyData_t.SMCBytes_t? {
         var input = SMCKeyData_t()
         var output = SMCKeyData_t()
         input.key = keyCode
@@ -337,7 +390,7 @@ public class SMC {
             return nil
         }
 
-        return SMCSafety.decodeFloat(output.bytes, dataSize: info.dataSize)
+        return output.bytes
     }
 
     /// Validate both the IOKit return code and the SMC protocol result byte.

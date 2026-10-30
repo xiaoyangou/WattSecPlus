@@ -99,6 +99,14 @@ expect(SMCSafety.decodeFloat(floatBytes(Float.nan), dataSize: 4) == nil,
        "NaN is rejected")
 expect(SMCSafety.decodeFloat(floatBytes(Float.infinity), dataSize: 4) == nil,
        "infinity is rejected")
+expect(SMCSafety.decodeSignedInt16([0x19, 0x15], dataSize: 2) == 5401,
+       "si16 positive current is little-endian mA")
+expect(SMCSafety.decodeSignedInt16([0xCE, 0xFC], dataSize: 2) == -818,
+       "si16 negative current is sign-extended")
+expect(SMCSafety.decodeSignedInt16([0, 0], dataSize: 2) == 0,
+       "si16 zero current is preserved")
+expect(SMCSafety.decodeSignedInt16([0x19, 0x15], dataSize: 1) == nil,
+       "si16 rejects an unexpected length")
 
 // A successful key-info result is cached, while each read still validates the
 // SMC protocol result byte.
@@ -144,6 +152,75 @@ do {
     let smc = SMC(transport: transport, logger: { _ in })
     expect(smc.getValue("PSTR") == nil, "unsupported SMC type returns nil")
 }
+
+do {
+    let transport = FakeTransport()
+    transport.bytes.bytes = floatBytes(42)
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.getValue("PSTR") == 42, "original float 42 path still works")
+}
+
+#if arch(arm64)
+// B0AC is a live read: only its metadata is cached, while each call reads the
+// current two-byte value again.
+do {
+    let transport = FakeTransport()
+    transport.metadata.dataSize = 2
+    transport.metadata.dataType = SMCSafety.signed16Type
+    transport.bytes.bytes = [0x19, 0x15]
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.batteryCurrentMilliamps() == 5401, "positive B0AC current is decoded")
+    transport.bytes.bytes = [0xCE, 0xFC]
+    expect(smc.batteryCurrentMilliamps() == -818, "negative B0AC current is decoded")
+    transport.bytes.bytes = [0, 0]
+    expect(smc.batteryCurrentMilliamps() == 0, "zero B0AC current is decoded")
+    expect(transport.metadataCallCount == 1, "B0AC metadata is cached")
+    expect(transport.bytesCallCount == 3, "B0AC bytes are read for every sample")
+}
+
+for invalid in [(UInt32(1), SMCSafety.signed16Type),
+                (UInt32(3), SMCSafety.signed16Type),
+                (UInt32(2), SMCSafety.floatType)] {
+    let transport = FakeTransport()
+    transport.metadata.dataSize = invalid.0
+    transport.metadata.dataType = invalid.1
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.batteryCurrentMilliamps() == nil, "invalid B0AC metadata returns nil")
+    expect(transport.bytesCallCount == 0, "invalid B0AC metadata stops before data read")
+}
+
+do {
+    let transport = FakeTransport()
+    transport.metadata.dataSize = 2
+    transport.metadata.dataType = SMCSafety.signed16Type
+    transport.metadata.protocolResult = 1
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.batteryCurrentMilliamps() == nil, "B0AC metadata protocol failure returns nil")
+    expect(transport.bytesCallCount == 0, "B0AC metadata protocol failure stops before data read")
+}
+
+do {
+    let transport = FakeTransport()
+    transport.metadata.dataSize = 2
+    transport.metadata.dataType = SMCSafety.signed16Type
+    transport.bytes.bytes = [0x19, 0x15]
+    transport.bytes.protocolResult = 1
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.batteryCurrentMilliamps() == nil, "B0AC data protocol failure returns nil")
+    transport.bytes.protocolResult = 0
+    transport.bytes.bytes = [0xCE, 0xFC]
+    expect(smc.batteryCurrentMilliamps() == -818,
+           "B0AC protocol failure does not return a cached current")
+    expect(transport.metadataCallCount == 2, "failed B0AC data refreshes metadata")
+}
+#else
+do {
+    let transport = FakeTransport()
+    let smc = SMC(transport: transport, logger: { _ in })
+    expect(smc.batteryCurrentMilliamps() == nil, "Intel does not guess B0AC encoding")
+    expect(transport.openCount == 0, "Intel B0AC path does not open SMC")
+}
+#endif
 
 // A kernel failure invalidates the connection and permits a later retry;
 // repeated open failures are rate-limited by the injected clock.

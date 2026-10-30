@@ -69,6 +69,18 @@ extension AppDelegate {
             PowerMonitor.shared.battery = BatteryStatus(systemWatts: 12.30, inputWatts: input)
             report.expect(batteryPowerItem.title == "电池功率：0.0 W", "No charge/discharge label at displayed zero")
         }
+        PowerMonitor.shared.battery = BatteryStatus(systemWatts: 12, inputWatts: 70, inputSourceDescription: "SMC（短时平均）")
+        report.expect(inputPowerItem.title == "电源输入功率：70.0 W", "No manual offsets applied")
+        report.expect(batteryPowerItem.title == "电池充电功率：58.0 W", "Automatic reading retains balance formula")
+        report.expect(inputPowerItem.toolTip == nil, "Input row must not show a hover popup")
+        for input in [10.0, 14.0] {
+            PowerMonitor.shared.battery = BatteryStatus(systemWatts: 12, inputWatts: input, isBatteryIdle: true)
+            report.expect(batteryPowerItem.title == "电池功率：0.0 W", "Confirmed idle ignores either sign of sensor mismatch")
+            report.expect(inputPowerItem.title == String(format: "电源输入功率：%.1f W", input), "Idle must not rewrite input sensor")
+        }
+        report.expect(batteryPowerItem.toolTip == nil, "Idle battery row must not show a hover popup")
+        PowerMonitor.shared.battery = BatteryStatus(systemWatts: 12, inputWatts: 14, isBatteryIdlePending: true)
+        report.expect(batteryPowerItem.title == "电池功率：—", "Pending idle must not flash false charging")
         let counter = SampleCounter()
         let monitor = PowerMonitor(sampler: {
             let count = counter.next()
@@ -93,8 +105,8 @@ extension AppDelegate {
                 times.append(Date())
                 // Combine subscriber order is unspecified; inspect UI after all sinks execute.
                 RunLoop.main.perform(inModes: [.common]) {
-                    let expectedBattery = reading.displayedBatteryWatts(decimalPlaces: self.detailLevel.rawValue)
-                        .map { String(format: "%.*f W", self.detailLevel.rawValue, $0) } ?? "不可用"
+                    let expectedBattery = reading.isBatteryIdlePending ? "—" : (reading.displayedBatteryWatts(decimalPlaces: self.detailLevel.rawValue)
+                        .map { String(format: "%.*f W", self.detailLevel.rawValue, $0) } ?? "不可用")
                     report.expect(self.batteryPowerItem.title == reading.powerLabel(decimalPlaces: self.detailLevel.rawValue) + "：" + expectedBattery,
                                   "Battery row and snapshot must match")
                     let expectedInput = reading.inputWatts.map { String(format: "%.*f W", self.detailLevel.rawValue, $0) } ?? "不可用"

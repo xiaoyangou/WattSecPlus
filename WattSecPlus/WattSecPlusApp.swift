@@ -410,7 +410,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateBatteryDisplay(_ battery: BatteryStatus? = nil) {
         let battery = battery ?? PowerMonitor.shared.battery
-        let power = battery.displayedBatteryWatts(decimalPlaces: detailLevel.rawValue).map { String(format: "%.*f W", detailLevel.rawValue, $0) } ?? "不可用"
+        let power = battery.isBatteryIdlePending ? "—" : (battery.displayedBatteryWatts(decimalPlaces: detailLevel.rawValue).map { String(format: "%.*f W", detailLevel.rawValue, $0) } ?? "不可用")
         let batteryTitle = battery.powerLabel(decimalPlaces: detailLevel.rawValue) + "：" + power
         if batteryPowerItem.title != batteryTitle { batteryPowerItem.title = batteryTitle }
         let input = battery.inputWatts.map { String(format: "%.*f W", detailLevel.rawValue, $0) } ?? "不可用"
@@ -501,7 +501,7 @@ class PowerMonitor: ObservableObject {
     private var lastSampleStarted: TimeInterval = -.infinity
 
     init(sampler: @escaping () -> BatteryStatus = {
-        BatteryStatus(systemWatts: SMC.shared.getValue("PSTR"), inputWatts: SMC.shared.getValue("PDTR"))
+        AutomaticPowerSampler.shared.sample()
     }, startsTimer: Bool = true) {
         self.sampler = sampler
         timerInterval = Double(PaceLevel.medium.rawValue)

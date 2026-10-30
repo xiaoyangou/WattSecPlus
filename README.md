@@ -30,6 +30,26 @@ Download `WattSecPlus-macOS.zip` from [Releases](https://github.com/xiaoyangou/W
 - **Width**: Dynamic or Fixed menu-bar width.
 - **Launch**: Launch at login.
 
+## Automatic readings (1.1.1)
+
+No manual calibration or fixed power offset is used. The app automatically checks Mac-only sources:
+
+1. Prefer `AppleSmartBattery.PowerTelemetryData` input/system values (mW → W) only after both update counters advance at a timely cadence.
+2. Reject unchanged, reset, missing or stale telemetry rather than presenting cached data as a live reading.
+3. Otherwise take a short paired sampling window of SMC `PDTR`/`PSTR` and average both channels over that same window.
+
+Power rows have no hover popups (1.1.3). Unplugging is detected from system power-source state. The existing Pace and Detail settings still control all visible readings, and battery balance is still **input − system**. The two new power rows remain the only additional metrics.
+
+This reads Mac sensor measurements, not the adapter's screen. It cannot automatically infer an adapter's calibration error, guarantee agreement with an independent meter, or establish instrument accuracy. Some USB-C/adapter voltage/current fields describe negotiated limits; they are deliberately not used as live input watts. Hardware sampling times can still differ. The unpublished 1.1.0 manual-calibration approach is removed; any old offset preference is ignored.
+
+## Adapter-only battery idle (1.1.2)
+
+While an adapter is connected and charging has stopped, the sign of input-minus-system noise is no longer used to declare battery activity. Live signed battery current and the charging flag confirm an idle state. Confirmed idle displays a neutral **battery power: 0 W** while the input/system sensor readings remain untouched.
+
+Two near-zero, not-charging observations confirm idle. During confirmation the battery row shows a neutral dash instead of flashing an estimated charge/discharge value. Current hysteresis uses 20 mA to enter and 60 mA to leave; an exact zero with a stale charging flag requires three confirmations. Unplugging, measurable charging, substantial battery current, or missing state evidence exits idle. This prevents adapter-only idle flicker without masking a battery that is genuinely supplementing the adapter. Idle confirmation follows Pace; precision still follows Detail.
+
+In confirmed idle only, displayed battery power is zero rather than the noisy power-sensor difference, so the display is not forced to satisfy exact power arithmetic in that state. Otherwise the balance remains input minus system. On hardware without a validated live battery-current source, idle is not guessed. The new current reader is verified for Apple Silicon; Intel idle detection still needs a validated implementation.
+
 ## Improvements
 
 - Two concise power rows in the existing native menu.
@@ -57,6 +77,12 @@ swiftc WattSecPlus/BatteryStatus.swift Tests/main.swift -o /tmp/wattsecplus-powe
 /tmp/wattsecplus-power-tests
 swiftc WattSecPlus/SMC.swift Tests/SMC/main.swift -o /tmp/wattsecplus-smc-tests
 /tmp/wattsecplus-smc-tests
+swiftc WattSecPlus/TelemetryFreshness.swift Tests/Telemetry/main.swift -o /tmp/wattsecplus-freshness-tests
+/tmp/wattsecplus-freshness-tests
+swiftc WattSecPlus/BatteryStatus.swift WattSecPlus/SMC.swift WattSecPlus/TelemetryFreshness.swift WattSecPlus/BatteryIdleDetector.swift WattSecPlus/PowerTelemetry.swift Tests/PowerSampler/main.swift -o /tmp/wattsecplus-source-tests
+/tmp/wattsecplus-source-tests
+swiftc WattSecPlus/BatteryIdleDetector.swift WattSecPlus/BatteryStatus.swift Tests/Idle/main.swift -o /tmp/wattsecplus-idle-tests
+/tmp/wattsecplus-idle-tests
 python3 Tests/Integration/run.py
 ```
 

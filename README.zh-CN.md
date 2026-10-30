@@ -39,6 +39,28 @@
 | **Launch → at Login** | 开机登录后启动。 |
 | **Quit** | 退出应用。 |
 
+## 自动读取（1.1.1）
+
+本版只依赖 Mac 自身传感器，**无需手动校准，也不固定加减任何瓦数**：
+
+1. 自动检查 `AppleSmartBattery.PowerTelemetryData` 中的输入／系统遥测，按 mW 转为 W。只有两个更新计数都能及时前进时，才优先使用它们。
+2. 排除长期未更新、计数重置、缺失或过期的数据，避免把系统缓存当成实时值。
+3. 遥测不可用或过慢时，自动回退到 SMC `PDTR`／`PSTR`，在同一个短采样窗口内分别求平均，减少单个瞬时读数的跳动。
+
+1.1.3 已去除功率行的悬停提示弹窗。系统供电状态用于识别拔电；Pace／Detail 继续统一控制刷新与小数位，充放电差值仍按“输入 − 系统功耗”计算，原菜单不额外增加功率指标。
+
+这里读取的是 **Mac 传感器报告值**，不是读取适配器屏幕，不能无基准推算适配器的标定误差或保证与独立功率计完全一致。部分 USB-C 电压／电流字段实际表示协商上限，因此不会被误用为实时输入功率。硬件本身的采样时点仍可能不同。
+
+上一份未发布的 1.1.0 手动校准方案已撤掉；旧偏移设置不再参与计算。
+
+## 适配器供电时的电池静止状态（1.1.2）
+
+停止充电、仅由适配器供电时，不再仅凭“输入减系统功耗”的小幅正负差值判断电池活动。程序用实时有符号电池电流与充电标志确认静止状态，确认后稳定显示 **电池功率：0 W**；输入和系统传感器原值不变。
+
+连续两次未充电、接近零电流的观察确认静止，确认期间显示中性的“—”，避免先闪现错误的充放电数值。进入阈值为 20 mA，退出阈值为 60 mA，以形成滞回、抑制抖动；充电标志仍为真但实际电流精确为零时，需要三次确认。拔电、可测充电电流、明显电池补充供电或状态数据缺失时立即退出，不把实际充放电长期压成零。确认速度仍随 Pace，显示精度仍随 Detail。
+
+**只有确认静止时**，电池显示采用 0 W，而不是带有时差和测量噪声的功率差值，因此该状态下不强行凑齐功率等式。其余情况仍保留“输入 − 系统功耗”的差值算法。无法取得可靠实时电池电流的硬件不会猜测静止；新增电流读取已针对 Apple Silicon 验证，Intel 的静止判定仍需可靠电流源支持。
+
 ## 功率计算方式
 
 ```text
@@ -79,6 +101,12 @@ swiftc WattSecPlus/BatteryStatus.swift Tests/main.swift -o /tmp/wattsecplus-powe
 /tmp/wattsecplus-power-tests
 swiftc WattSecPlus/SMC.swift Tests/SMC/main.swift -o /tmp/wattsecplus-smc-tests
 /tmp/wattsecplus-smc-tests
+swiftc WattSecPlus/TelemetryFreshness.swift Tests/Telemetry/main.swift -o /tmp/wattsecplus-freshness-tests
+/tmp/wattsecplus-freshness-tests
+swiftc WattSecPlus/BatteryStatus.swift WattSecPlus/SMC.swift WattSecPlus/TelemetryFreshness.swift WattSecPlus/BatteryIdleDetector.swift WattSecPlus/PowerTelemetry.swift Tests/PowerSampler/main.swift -o /tmp/wattsecplus-source-tests
+/tmp/wattsecplus-source-tests
+swiftc WattSecPlus/BatteryIdleDetector.swift WattSecPlus/BatteryStatus.swift Tests/Idle/main.swift -o /tmp/wattsecplus-idle-tests
+/tmp/wattsecplus-idle-tests
 python3 Tests/Integration/run.py
 ```
 

@@ -13,5 +13,6 @@ with tempfile.TemporaryDirectory(prefix="wattsec-integration-") as directory:
     executable = directory / "integration"
     subprocess.run(["swiftc", "-module-cache-path", str(directory / "cache"), str(generated),
                     str(root / "WattSecPlus/BatteryStatus.swift"), str(root / "WattSecPlus/SMC.swift"),
+                    str(root / "WattSecPlus/PowerTelemetry.swift"), str(root / "WattSecPlus/TelemetryFreshness.swift"), str(root / "WattSecPlus/BatteryIdleDetector.swift"),
                     "-o", str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
